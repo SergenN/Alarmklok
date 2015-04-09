@@ -6,6 +6,8 @@
 .def saveSR = r19
 .def temp = r20
 .def segment = r21
+.def counter = r22
+.def number = r23
 
 .org 0x0000
 rjmp init
@@ -62,45 +64,16 @@ output:
 	ret
 
 vul_segment:
-	/*ldi segment, 0b00100100
-	rcall output
-
-	ldi segment, 0b01110111
-	rcall output
-
-	ldi segment, 0b00101110
-	rcall output
-
-	ldi segment, 0b01101101
-	rcall output
-
-	ldi segment, 0b01110111
-	rcall output
-
-	ldi segment, 0b01110111
-	rcall output
-
-	ldi segment, 0b00001111
-	rcall output
-	
-	ret*/
-
 	mov temp, hour
-	rcall tobin
-	rcall output
-	rcall output
+	rcall convert
 
 	mov temp, minute
-	rcall tobin
-	rcall output
-	rcall output
+	rcall convert
 
 	mov temp, second
-	rcall tobin
-	rcall output
-	rcall output
+	rcall convert
 
-	ldi temp, 0b00000011
+	ldi temp, 0b00000111
 	rcall output
 
 	ret
@@ -144,7 +117,7 @@ num0:
 	LDI temp, $77
 	rjmp tobin_continue
 num1:
-	LDI temp, $12
+	LDI temp, $24
 	rjmp tobin_continue
 num2:
 	LDI temp, $5D
@@ -188,6 +161,27 @@ increment_time:
 	clr hour
 	hour_continue:
 	ret
+
+convert:
+	clr counter
+	mov number, temp
+	CPI number, 10
+	BRGE delen
+	convert_continue:
+	mov temp, counter
+	rcall tobin
+	rcall output
+	MOV temp, number
+	rcall tobin
+	rcall output
+ret
+
+delen:
+	SUBI number, 10
+	INC counter
+	CPI number, 10
+	BRGE delen
+rjmp convert_continue
 
 ONE_SECOND_TIMER:
 	in saveSR, SREG
