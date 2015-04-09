@@ -5,7 +5,7 @@
 .def second = r18
 .def saveSR = r19
 .def temp = r20
-.def temp2 = r21
+.def segment = r21
 
 .org 0x0000
 rjmp init
@@ -44,23 +44,132 @@ init:
 	ldi temp, (1 << OCIE1A)
 	out TIMSK, temp
 
+	clr hour
+	clr minute
+	clr second
+
 	clr temp
-	ldi temp2, 0b00110110
 	sei
 
 loop:
-	clr temp
-	out UDR, temp2
 	rjmp loop
 
 output:
-	cpi temp, 8
-	brlt verder
+	SBIS	UCSRA,	UDRE
+	RJMP	output
+
+	out UDR, temp
 	ret
-	verder:
-	out UDR, temp2
-	inc temp
-	rjmp output
+
+vul_segment:
+	/*ldi segment, 0b00100100
+	rcall output
+
+	ldi segment, 0b01110111
+	rcall output
+
+	ldi segment, 0b00101110
+	rcall output
+
+	ldi segment, 0b01101101
+	rcall output
+
+	ldi segment, 0b01110111
+	rcall output
+
+	ldi segment, 0b01110111
+	rcall output
+
+	ldi segment, 0b00001111
+	rcall output
+	
+	ret*/
+
+	mov temp, hour
+	rcall tobin
+	rcall output
+	rcall output
+
+	mov temp, minute
+	rcall tobin
+	rcall output
+	rcall output
+
+	mov temp, second
+	rcall tobin
+	rcall output
+	rcall output
+
+	ldi temp, 0b00000011
+	rcall output
+
+	ret
+
+tobin:
+	CPI temp, 0
+	BREQ num0
+
+	CPI temp, 1
+	BREQ num1
+
+	CPI temp, 2
+	BREQ num2
+
+	CPI temp, 3
+	BREQ num3
+
+	CPI temp, 4
+	BREQ num4
+
+	CPI temp, 5
+	BREQ num5
+
+	CPI temp, 6
+	BREQ num6
+
+	CPI temp, 7
+	BREQ num7
+
+	CPI temp, 8
+	BREQ num8
+
+	CPI temp, 9
+	BREQ num9
+
+	tobin_continue:
+
+	RET
+
+num0:
+	LDI temp, $77
+	rjmp tobin_continue
+num1:
+	LDI temp, $12
+	rjmp tobin_continue
+num2:
+	LDI temp, $5D
+	rjmp tobin_continue
+num3:
+	LDI temp, $6D
+	rjmp tobin_continue
+num4:
+	LDI temp, $2E
+	rjmp tobin_continue
+num5:
+	LDI temp, $6B
+	rjmp tobin_continue
+num6:
+	LDI temp, $7B
+	rjmp tobin_continue
+num7:
+	LDI temp, $25
+	rjmp tobin_continue
+num8:
+	LDI temp, $7F
+	rjmp tobin_continue
+num9:
+	LDI temp, $6F
+	rjmp tobin_continue
 
 increment_time:
 	inc second
@@ -82,7 +191,7 @@ increment_time:
 
 ONE_SECOND_TIMER:
 	in saveSR, SREG
-	in r16, PORTB
+	rcall vul_segment
 	rcall increment_time
 	out SREG, saveSR
 	reti
