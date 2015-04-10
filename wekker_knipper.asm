@@ -1,16 +1,17 @@
 .include "m32def.inc"
 
+.def saveSR = r3
+.def timeSwitch = r4 ;switch to determine one second, and if flick is on or off
 .def hour = r16
 .def minute = r17
 .def second = r18
-.def saveSR = r19
-.def temp = r20
-.def timeSwitch = r21 ;switch to determine one second, and if flick is on or off
-.def counter = r22
-.def number = r23
-.def waithalf = r24
-.def waitfull = r25
-.def useFlicker = r26
+.def temp = r19
+.def counter = r20
+.def number = r21
+.def waithalf = r22 ;wait half a second
+.def waitfull = r23 ; wait a full second
+.def useTimer = r24
+.def status = r25
 
 .org 0x0000
 rjmp init
@@ -28,6 +29,9 @@ init:
 	out OCR1AH, temp
 	ldi temp, low(21600)
 	out OCR1AL, temp
+
+	clr temp
+	out DDRA, temp
 
 	// Init UART
 	clr temp;
@@ -54,25 +58,47 @@ init:
 	clr second
 	clr timeSwitch
 	clr temp
+	clr status
+
+	ser useTimer
 	;set global interrupt flag
 	sei
 
+begin_loop:
+	in temp, PINA
+	com temp
+	cpi temp, 2
+	breq set_hour
+	rcall flicker
+	rjmp begin_loop
+
+set_hour:
+	inc status
+	set_hour_loop:
+	rcall flicker
+	rjmp set_hour_loop
+
 main:
-	tst timeSwitch
-	brne main
-	tst waitfull
-	brne main
-	rcall send_time
-	rcall increment_time
-	ser waitfull
-rjmp main
+	rcall time_running
+	rjmp main
 
 output:
 	SBIS	UCSRA,	UDRE
 	RJMP	output
 
 	out UDR, temp
-ret
+	ret
+
+time_running:
+	tst timeSwitch
+	brne time_running_continue
+	tst waitfull
+	brne time_running_continue
+	rcall send_time
+	rcall increment_time
+	ser waitfull
+	time_running_continue:
+	ret
 
 send_time:
 	mov temp, hour
@@ -89,16 +115,36 @@ send_time:
 ret
 
 send_nothing:
-	clr counter
 	ldi temp, 0x80
 	rcall output
-	ldi temp, 0
-	nothing_loop:
-	rcall output
-	inc counter
-	cpi counter, 7
-	brlt nothing_loop
-ret
+	cpi status, 0
+	breq status0
+	cpi status, 1
+	breq status1
+	status0:
+		ldi temp, 0
+		nothing_loop:
+		rcall output
+		inc counter
+		cpi counter, 6
+		brlt nothing_loop
+		ldi temp, 0b00000110
+		rcall output
+		rjmp send_nothing_continue
+	status1:
+		ldi temp, 0
+		rcall output
+		ldi temp, 0
+		rcall output
+		mov temp, minute
+		rcall convert
+		mov temp, second
+		rcall convert
+		ldi temp, 0b00000110
+		rcall output
+		rjmp send_nothing_continue
+	send_nothing_continue:
+	ret
 
 tobin:
 	CPI temp, 0
@@ -207,6 +253,9 @@ flicker:
 	ser waithalf
 	flicker_continue:
 ret
+
+hour_flicker:
+	
 
 ONE_SECOND_TIMER:
 	in saveSR, SREG
