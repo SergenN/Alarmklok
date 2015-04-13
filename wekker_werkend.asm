@@ -78,27 +78,28 @@ begin_loop:
 	rcall flicker
 	rjmp begin_loop
 
-;only hours flicker, set hour with SW01
+;only hours flicker, set hour with SW1, increment with SW0
 set_hour:
 	inc status
 	rcall wait_full_second
 	rcall wait_full_second
 	rcall increment_button
 
-;only minutes flicker, set minute with SW01
+;only minutes flicker, set minute with SW1
 set_minute:
 	inc status
 	rcall wait_full_second
 	rcall wait_full_second
 	rcall increment_button
 
-;only seconds flicker, set second with SW01
+;only seconds flicker, set second with SW1
 set_second:
 	inc status
 	rcall wait_full_second
 	rcall wait_full_second
 	rcall increment_button
 
+;only hours flicker, set alarm hour with SW1
 set_alarm_hour:
 	inc status
 	rcall wait_full_second
@@ -106,12 +107,14 @@ set_alarm_hour:
 	ldi byteSeven, 0b000000101
 	rcall increment_button
 
+;only minutes flicker, set alarm minute with SW1
 set_alarm_minute:
 	inc status
 	rcall wait_full_second
 	rcall wait_full_second
 	rcall increment_button
 
+;set alarm on/off with SW0, confirm with SW1
 set_alarm_on_off:
 	inc status
 	rcall wait_full_second
@@ -143,13 +146,14 @@ set_alarm_on_off:
 				rcall send_time
 			rjmp button_sw01_alarm
 
+;set status to 0, set bit 2 in byteSeven
 clear_status:
 	sbr byteSeven, 2
 	clr status
 
 
 
-;main program, clock is running
+;main program, time is running
 main:
 	rcall compare_alarm
 	rcall time_running
@@ -165,12 +169,14 @@ output:
 	out UDR, temp
 	ret
 
+;wait one second, increment time
 time_running:
 	rcall wait_full_second
 	rcall send_time
 	rcall increment_time
 ret
 
+;output current time to UART
 send_time:
 	cpi status, 4
 	brge alarm_not_set
@@ -192,6 +198,7 @@ send_time:
 	rcall send_alarm_time
 ret
 
+;send current alarm time to UART
 send_alarm_time:
 	mov temp, alarmHour
 	rcall convert
@@ -208,6 +215,7 @@ send_alarm_time:
 	rcall output
 ret
 
+;depending on status, send values to UART
 send_nothing:
 	ldi temp, 0x80
 	rcall output
@@ -315,6 +323,7 @@ send_nothing:
 	send_nothing_continue:
 	ret
 
+;increment value with SW0
 increment_button:
 	in temp, PINA
 	com temp
@@ -351,6 +360,7 @@ wait_half_second:
 		brne waiting_half_second
 	ret
 
+;convert decimal to binary display
 tobin:
 	CPI temp, 0
 	BREQ num0
@@ -406,6 +416,28 @@ num9:
 	LDI temp, $6F
 	rjmp tobin_continue
 
+;if number is over 10, divide and decode seperate numbers
+convert:
+	clr counter
+	mov number, temp
+	CPI number, 10
+	BRGE divide
+	convert_continue:
+	mov temp, counter
+	rcall tobin
+	rcall output
+	MOV temp, number
+	rcall tobin
+	rcall output
+ret
+
+divide:
+	SUBI number, 10
+	INC counter
+	CPI number, 10
+	BRGE divide
+rjmp convert_continue
+
 ;increment the overall time
 increment_time:
 	inc second
@@ -425,6 +457,7 @@ increment_time:
 	hour_continue:
 ret
 
+;depending on status, increment hour, minute or second
 set_time_status_check:
 	cpi status, 1
 	breq time_status1
@@ -462,7 +495,6 @@ increment_hour:
 	inc_hour_continue:
 ret
 
-;increment minute
 increment_minute:
 	rcall wait_half_second
 	inc minute
@@ -472,7 +504,6 @@ increment_minute:
 	inc_minute_continue:
 ret
 
-;increment second
 increment_second:
 	rcall wait_half_second
 	inc second
@@ -500,6 +531,7 @@ increment_alarm_minute:
 	inc_alarm_minute_continue:
 ret
 
+;if alarm time equals current time, let alarm ring
 compare_alarm:
 	cpi byteSeven, 0b00000111
 	breq alarm_bit_set
@@ -532,27 +564,7 @@ cancel_alarm:
 	clr status
 	ret
 
-convert:
-	clr counter
-	mov number, temp
-	CPI number, 10
-	BRGE divide
-	convert_continue:
-	mov temp, counter
-	rcall tobin
-	rcall output
-	MOV temp, number
-	rcall tobin
-	rcall output
-ret
-
-divide:
-	SUBI number, 10
-	INC counter
-	CPI number, 10
-	BRGE divide
-rjmp convert_continue
-
+;flickering of display, half a second current time, half a second nothing
 flicker:
 	tst waithalf
 	brne flicker_continue
@@ -571,6 +583,7 @@ flicker:
 	flicker_continue:
 ret
 
+;ISR, every half a second
 ONE_SECOND_TIMER:
 	in saveSR, SREG
 	tst timeSwitch
